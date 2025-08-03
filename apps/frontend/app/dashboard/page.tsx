@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -29,73 +29,63 @@ import {
   User,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-
+import { BACKEND_URL } from "@/config"
+import axios from 'axios'
 interface Website {
   id: string
-  name: string
   url: string
   status: "up" | "down"
   responseTime: number
-  uptime: number
   lastChecked: string
-  checkInterval: string
 }
 
 export default function Dashboard() {
   const [websites, setWebsites] = useState<Website[]>([
-    {
-      id: "1",
-      name: "My Portfolio",
-      url: "https://myportfolio.com",
-      status: "up",
-      responseTime: 245,
-      uptime: 99.9,
-      lastChecked: "2 minutes ago",
-      checkInterval: "1 minute",
-    },
-    {
-      id: "2",
-      name: "E-commerce Store",
-      url: "https://mystore.com",
-      status: "down",
-      responseTime: 0,
-      uptime: 98.2,
-      lastChecked: "5 minutes ago",
-      checkInterval: "1 minute",
-    },
-    {
-      id: "3",
-      name: "Blog Website",
-      url: "https://myblog.com",
-      status: "up",
-      responseTime: 180,
-      uptime: 99.8,
-      lastChecked: "1 minute ago",
-      checkInterval: "5 minutes",
-    },
   ])
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [newWebsite, setNewWebsite] = useState({
-    name: "",
     url: "",
     checkInterval: "1",
   })
 
-  const handleAddWebsite = () => {
-    if (newWebsite.name && newWebsite.url) {
+useEffect(() => {
+  axios.get(`${BACKEND_URL}/websites`, {
+    headers: {
+      authorization: `Bearer ${window.localStorage.getItem('token')}`
+    }
+  }).then(response => {
+    setWebsites(
+      response.data.websites.map((w: any) => ({
+        id: w.id,
+        url: w.url,
+        status: w.ticks[0] ? (w.ticks[0].status.toLowerCase() === "up" ? "up" : "down") : "checking",
+        responseTime: w.ticks[0] ? w.ticks[0].responseTime : 0,
+        lastChecked: w.ticks[0] ? w.ticks[0].createdAt : new Date().toLocaleString()
+      }))
+    );
+  });
+}, []);
+
+
+  const handleAddWebsite = async() => {
+    if (newWebsite.url) {
       const website: Website = {
         id: Date.now().toString(),
-        name: newWebsite.name,
         url: newWebsite.url,
         status: "up",
         responseTime: Math.floor(Math.random() * 500) + 100,
-        uptime: 100,
         lastChecked: "Just now",
-        checkInterval: `${newWebsite.checkInterval} minute${newWebsite.checkInterval !== "1" ? "s" : ""}`,
       }
+      await axios.post(`${BACKEND_URL}/website`, {
+        url: newWebsite.url
+      },{
+        headers:{
+            authorization: `Bearer ${window.localStorage.getItem('token')}`
+        }
+      })
       setWebsites([...websites, website])
-      setNewWebsite({ name: "", url: "", checkInterval: "1" })
+      setNewWebsite({url: "", checkInterval: "1" })
       setIsAddModalOpen(false)
     }
   }
@@ -133,57 +123,6 @@ export default function Dashboard() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Monitors</p>
-                  <p className="text-2xl font-bold text-gray-900">{websites.length}</p>
-                </div>
-                <Globe className="w-8 h-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Up</p>
-                  <p className="text-2xl font-bold text-green-600">{upWebsites}</p>
-                </div>
-                <CheckCircle className="w-8 h-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Down</p>
-                  <p className="text-2xl font-bold text-red-600">{downWebsites}</p>
-                </div>
-                <AlertCircle className="w-8 h-8 text-red-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Avg Response</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {Math.round(websites.reduce((acc, w) => acc + w.responseTime, 0) / websites.length)}ms
-                  </p>
-                </div>
-                <Clock className="w-8 h-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Monitors Section */}
         <div className="flex justify-between items-center mb-6">
@@ -202,15 +141,6 @@ export default function Dashboard() {
                 <DialogDescription>Add a new website to monitor its uptime and performance.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Website Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="My Website"
-                    value={newWebsite.name}
-                    onChange={(e) => setNewWebsite({ ...newWebsite, name: e.target.value })}
-                  />
-                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="url">Website URL</Label>
                   <Input
@@ -261,7 +191,6 @@ export default function Dashboard() {
                       className={`w-3 h-3 rounded-full ${website.status === "up" ? "bg-green-500" : "bg-red-500"}`}
                     />
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{website.name}</h3>
                       <p className="text-sm text-gray-500">{website.url}</p>
                     </div>
                   </div>
@@ -283,20 +212,9 @@ export default function Dashboard() {
                         {website.status === "up" ? `${website.responseTime}ms` : "N/A"}
                       </p>
                     </div>
-
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-gray-600">Uptime</p>
-                      <p className="text-sm text-gray-900">{website.uptime}%</p>
-                    </div>
-
                     <div className="text-center">
                       <p className="text-sm font-medium text-gray-600">Last Checked</p>
                       <p className="text-sm text-gray-900">{website.lastChecked}</p>
-                    </div>
-
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-gray-600">Interval</p>
-                      <p className="text-sm text-gray-900">{website.checkInterval}</p>
                     </div>
 
                     <DropdownMenu>
